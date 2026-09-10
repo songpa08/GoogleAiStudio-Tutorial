@@ -258,7 +258,7 @@ async function processVideoUrl(url) {
         initYouTubePlayer(currentVideoData.video_id);
 
         // 2. 비디오 메타데이터 렌더링
-        renderVideoMetadata(currentVideoData, currentTranscriptData);
+        renderVideoMetadata(currentVideoData, currentTranscriptData, data.from_cache, data.created_at);
 
         // 3. 자막 세그먼트 렌더링
         renderTranscriptList(currentSegments);
@@ -275,7 +275,7 @@ async function processVideoUrl(url) {
     }
 }
 
-function renderVideoMetadata(video, transcription) {
+function renderVideoMetadata(video, transcription, fromCache = false, createdAt = "") {
     const card = document.getElementById("videoInfoCard");
     card.classList.remove("hidden");
     card.classList.add("flex");
@@ -285,6 +285,21 @@ function renderVideoMetadata(video, transcription) {
     document.getElementById("videoUploader").textContent = video.uploader;
     document.getElementById("videoDurationBadge").textContent = video.duration_formatted;
     document.getElementById("videoSizeBadge").textContent = `${video.file_size_mb} MB`;
+
+    // CSV 캐시 상태 뱃지
+    const cacheBadge = document.getElementById("cacheStatusBadge");
+    const cacheText = document.getElementById("cacheStatusText");
+    if (fromCache) {
+        cacheBadge.classList.remove("hidden");
+        cacheBadge.classList.add("inline-flex");
+        cacheText.textContent = createdAt ? `CSV 저장본 (${createdAt})` : "CSV 저장본 로드";
+    } else {
+        cacheBadge.classList.remove("hidden");
+        cacheBadge.classList.add("inline-flex");
+        cacheBadge.className = "text-[11px] bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2.5 py-1 rounded-md font-medium inline-flex items-center gap-1";
+        cacheText.textContent = "신규 전사 및 CSV 저장 완료";
+    }
+    lucide.createIcons();
 
     // 요약 표시
     const summaryBox = document.getElementById("summaryContent");

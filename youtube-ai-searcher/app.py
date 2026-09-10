@@ -81,12 +81,27 @@ async def home(request: Request):
 @app.post("/api/process")
 async def api_process_video(req: ProcessVideoRequest):
     """
-    유튜브 URL을 받아 비디오 ID 및 정보를 파싱하고, 오디오를 추출하여 Gemini 3.5 Transcribe로 전사합니다.
+    유튜브 URL을 받아 기존 CSV 저장소에 저장된 트랜스크립트가 있는지 먼저 확인하고,
+    있다면 저장된 데이터를 즉시 반환하며,
+    없다면 오디오를 다운로드하여 Gemini STT로 추출한 뒤 CSV 파일에 저장합니다.
     """
     url = req.url.strip()
     if not url:
         raise HTTPException(status_code=400, detail="유튜브 영상 링크(URL)를 입력해주세요.")
 
+    # 1. 기존 CSV 캐시 확인 (2번째 호출부터는 즉시 반환)
+    cached_result = get_cached_transcript(url)
+    if cached_result:
+        print(f"[API] CSV 캐시 발견: {url} -> 저장된 트랜스크립트 즉시 반환")
+        return {
+            "success": True,
+            "from_cache": True,
+            "created_at": cached_result.get("created_at"),
+            "video": cached_result["video"],
+            "transcription": cached_result["transcription"],
+        }
+
+    # 2. 캐시가 없으면 Gemini API 키 확인 후 신규 추출
     api_key = req.api_key.strip() if req.api_key else os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise HTTPException(
@@ -95,34 +110,47 @@ async def api_process_video(req: ProcessVideoRequest):
         )
 
     try:
-        # 1. 유튜브 Video ID 및 메타데이터 추출
+        # 3. 유튜브 Video ID 파싱
         video_id = extract_video_id(url)
         if not video_id:
             raise HTTPException(status_code=400, detail="유효한 YouTube URL이 아닙니다.")
 
-        # 2. 오디오 다운로드
+        # 4. 오디오 다운로드
         audio_info = download_audio(url, str(DOWNLOADS_DIR))
 
-        # 3. Gemini 3.5 Transcribe STT 실행
+        # 5. Gemini STT 실행
         stt_result = transcribe_audio_gemini_35(
             audio_path=audio_info["file_path"],
             mime_type=audio_info["mime_type"],
             api_key=api_key,
-            model_name=req.stt_model or "gemini-3.5-transcribe",
+            model_name=req.stt_model or "gemini-3.7-flash",
         )
+
+        video_payload = {
+            "video_id": video_id,
+            "title": audio_info.get("title"),
+            "uploader": audio_info.get("uploader"),
+            "thumbnail": audio_info.get("thumbnail"),
+            "duration": audio_info.get("duration"),
+            "duration_formatted": audio_info.get("duration_formatted"),
+            "file_size_mb": audio_info.get("file_size_mb"),
+            "embed_url": f"https://www.youtube.com/embed/{video_id}?enablejsapi=1",
+        }
+
+        # 6. CSV 파일에 저장 (영구 보관 및 캐싱)
+        try:
+            save_transcript(
+                url=url,
+                video_data=video_payload,
+                transcription_data=stt_result,
+            )
+        except Exception as save_err:
+            print(f"[API Warning] CSV 저장 중 오류: {save_err}")
 
         return {
             "success": True,
-            "video": {
-                "video_id": video_id,
-                "title": audio_info.get("title"),
-                "uploader": audio_info.get("uploader"),
-                "thumbnail": audio_info.get("thumbnail"),
-                "duration": audio_info.get("duration"),
-                "duration_formatted": audio_info.get("duration_formatted"),
-                "file_size_mb": audio_info.get("file_size_mb"),
-                "embed_url": f"https://www.youtube.com/embed/{video_id}?enablejsapi=1",
-            },
+            "from_cache": False,
+            "video": video_payload,
             "transcription": stt_result,
         }
 
@@ -132,6 +160,18 @@ async def api_process_video(req: ProcessVideoRequest):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"영상 처리 중 오류 발생: {str(e)}")
+
+
+@app.get("/api/export-csv")
+async def api_export_csv():
+    """저장된 전체 유튜브 트랜스크립트 CSV 파일을 다운로드합니다."""
+    if not DEFAULT_CSV_PATH.exists():
+        raise HTTPException(status_code=404, detail="저장된 트랜스크립트 CSV 파일이 없습니다.")
+    return FileResponse(
+        path=str(DEFAULT_CSV_PATH),
+        filename="youtube_transcripts.csv",
+        media_type="text/csv",
+    )
 
 
 @app.post("/api/chat")
