@@ -12,11 +12,15 @@ from pydantic import BaseModel
 from services.youtube_service import get_video_info, download_audio, extract_video_id
 from services.stt_service import transcribe_audio_gemini_35
 from services.qa_service import answer_video_question
+from services.storage_service import get_cached_transcript, save_transcript, DEFAULT_CSV_PATH
+from fastapi.responses import HTMLResponse, Response, FileResponse
 
 # 경로 설정
 BASE_DIR = Path(__file__).resolve().parent
 DOWNLOADS_DIR = BASE_DIR / "downloads"
 DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
+DATA_DIR = BASE_DIR / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 TEMPLATES_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 STATIC_DIR.mkdir(parents=True, exist_ok=True)
