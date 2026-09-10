@@ -1,5 +1,5 @@
 # To run this code you need to install the following dependencies:
-# pip install google-genai
+# pip install google-genai lameenc
 
 import mimetypes
 import os
@@ -97,12 +97,45 @@ Context:
 
     if audio_data_chunks:
         combined_audio = b"".join(audio_data_chunks)
+        parameters = parse_audio_mime_type(audio_mime_type)
+        sample_rate = parameters.get("rate") or 24000
+
+        # MP3로 압축 저장 (약 500KB로 용량 대폭 감소, 고음질 유지)
+        output_mp3 = "output.mp3"
+        saved_mp3 = save_as_mp3(combined_audio, sample_rate, output_mp3, bitrate_kbps=64)
+
+        # WAV 파일로도 저장
+        output_wav = "output.wav"
         wav_data = convert_to_wav(combined_audio, audio_mime_type)
-        output_file = "output.wav"
-        save_binary_file(output_file, wav_data)
-        print(f"\n오디오가 성공적으로 생성되었습니다: {output_file}")
+        save_binary_file(output_wav, wav_data)
+
+        if saved_mp3:
+            mp3_size_kb = os.path.getsize(output_mp3) / 1024
+            print(f"\n[MP3 압축 완료 (약 500KB)] : {output_mp3} ({mp3_size_kb:.1f} KB)")
+        wav_size_mb = os.path.getsize(output_wav) / (1024 * 1024)
+        print(f"[원본 WAV 저장 완료]       : {output_wav} ({wav_size_mb:.2f} MB)")
     else:
         print("\n생성된 오디오 데이터가 없습니다.")
+
+
+def save_as_mp3(pcm_data: bytes, sample_rate: int, output_file: str, bitrate_kbps: int = 64) -> bool:
+    """PCM 오디오 데이터를 지정된 비트레이트의 MP3 파일로 압축 저장합니다."""
+    try:
+        import lameenc
+        encoder = lameenc.Encoder()
+        encoder.set_bit_rate(bitrate_kbps)
+        encoder.set_in_sample_rate(sample_rate)
+        encoder.set_channels(1)
+        encoder.set_quality(2)
+
+        mp3_data = encoder.encode(pcm_data)
+        mp3_data += encoder.flush()
+
+        save_binary_file(output_file, mp3_data)
+        return True
+    except ImportError:
+        print("MP3 인코딩을 위해 'pip install lameenc' 가 필요합니다.")
+        return False
 
 def convert_to_wav(audio_data: bytes, mime_type: str) -> bytes:
     """Generates a WAV file header for the given audio data and parameters.
