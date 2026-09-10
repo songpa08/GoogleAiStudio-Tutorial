@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Audio Transcriber & Gemini STT</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        gemini: {
+                            50: '#f0f4ff',
+                            100: '#e0eaff',
+                            500: '#4285f4',
+                            600: '#1a73e8',
+                            700: '#1557b0',
+                            glow: '#7c3aed'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Marked.js for Markdown Rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
+
+    <!-- Header Navigation -->
+    <header class="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-500 via-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                    <i data-lucide="mic" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg bg-gradient-to-r from-white via-indigo-200 to-indigo-400 bg-clip-text text-transparent">
+                        YouTube Transcriber
+                    </h1>
+                    <p class="text-xs text-slate-400">Powered by Google Gemini STT</p>
+                </div>
+            </div>
+
+            <!-- API Key & Model Badge -->
+            <div class="flex items-center space-x-3">
+                <div class="relative flex items-center">
+                    <input type="password" id="apiKeyInput" placeholder="Gemini API Key (선택)" 
+                           class="bg-slate-800/80 border border-slate-700/80 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 w-44 transition-all">
+                    {% if has_env_key %}
+                    <span class="absolute right-2.5 flex h-2 w-2">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" title="환경변수 API 키 연결됨"></span>
+                    </span>
+                    {% endif %}
+                </div>
+                <select id="modelSelect" class="bg-slate-800/80 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+                    <option value="gemini-2.5-flash" selected>Gemini 2.5 Flash (권장)</option>
+                    <option value="gemini-2.5-pro">Gemini 2.5 Pro (고정밀)</option>
+                    <option value="gemini-3.5-transcribe">Gemini 3.5 Transcribe</option>
+                </select>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="max-w-5xl mx-auto px-4 py-8 flex-1 w-full space-y-8">
+
+        <!-- Hero & Input Section -->
+        <section class="text-center space-y-4 py-4">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-medium">
+                <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                <span>유튜브 오디오 자동 추출 + 화자 분리 + 타임스탬프 전사 + 3줄 요약</span>
+            </div>
+            <h2 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+                유튜브 영상 링크 하나로 <br class="sm:hidden">
+                <span class="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">완벽한 자막과 텍스트</span>를 추출하세요
+            </h2>
+            <p class="text-sm text-slate-400 max-w-xl mx-auto">
+                YouTube URL을 입력하면 고음질 오디오 스트림을 다운로드하여 Gemini의 멀티모달 오디오 AI로 정밀하게 전사합니다.
+            </p>
+
+            <!-- URL Input Card -->
+            <div class="max-w-2xl mx-auto pt-4">
+                <div class="relative group p-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl shadow-xl shadow-indigo-500/10 transition-all duration-300">
+                    <div class="flex items-center bg-slate-900 rounded-xl px-4 py-2">
+                        <i data-lucide="youtube" class="w-6 h-6 text-red-500 mr-3 flex-shrink-0"></i>
+                        <input type="text" id="youtubeUrl" placeholder="https://www.youtube.com/watch?v=..." 
+                               class="w-full bg-transparent border-none text-sm text-white focus:outline-none placeholder-slate-500">
+                        <button id="transcribeBtn" class="ml-3 px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-medium text-xs flex items-center gap-2 transition-all flex-shrink-0 shadow-lg shadow-indigo-600/30">
+                            <i data-lucide="sparkles" class="w-4 h-4"></i>
+                            <span>전사 시작</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Progress / Loading Status Card -->
+        <section id="progressSection" class="hidden max-w-2xl mx-auto bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-2xl backdrop-blur-md space-y-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-y-0.5 space-x-3">
+                    <div class="relative flex h-3 w-3">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+                    </div>
+                    <span id="progressStepTitle" class="text-sm font-semibold text-slate-200">처리 준비 중...</span>
+                </div>
+                <span id="progressTime" class="text-xs text-slate-400 font-mono">00:00</span>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                <div id="progressBar" class="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 h-2 rounded-full w-1/4 transition-all duration-500"></div>
+            </div>
+
+            <!-- Step items -->
+            <div class="grid grid-cols-3 gap-2 pt-2 text-xs">
+                <div id="step1" class="flex items-center gap-1.5 text-indigo-400 font-medium">
+                    <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+                    <span>1. 정보 조회</span>
+                </div>
+                <div id="step2" class="flex items-center gap-1.5 text-slate-500 font-medium">
+                    <i data-lucide="circle-dashed" class="w-4 h-4 animate-spin"></i>
+                    <span>2. 오디오 다운</span>
+                </div>
+                <div id="step3" class="flex items-center gap-1.5 text-slate-500 font-medium">
+                    <i data-lucide="circle" class="w-4 h-4"></i>
+                    <span>3. Gemini 전사</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Error Card -->
+        <div id="errorBox" class="hidden max-w-2xl mx-auto bg-red-950/50 border border-red-500/40 rounded-xl p-4 flex items-start gap-3 text-red-200 text-sm">
+            <i data-lucide="alert-circle" class="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5"></i>
+            <div id="errorMessage" class="flex-1">오류가 발생했습니다.</div>
+        </div>
+
+        <!-- Result Section -->
+        <section id="resultSection" class="hidden space-y-6">
+            
+            <!-- Video Info & Audio Player Banner -->
+            <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 shadow-xl backdrop-blur-md flex flex-col md:flex-row gap-5 items-center">
+                <!-- Thumbnail -->
+                <img id="videoThumb" src="" alt="Thumbnail" class="w-full md:w-48 h-28 object-cover rounded-xl shadow-md border border-slate-800">
+                
+                <!-- Details -->
+                <div class="flex-1 space-y-2 w-full">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-xs font-semibold" id="videoUploader">채널명</span>
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-400 text-xs" id="videoDuration">00:00</span>
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-400 text-xs" id="audioSize">0 MB</span>
+                        <span class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-xs" id="usedModelBadge">Gemini 2.5 Flash</span>
+                    </div>
+                    <h3 id="videoTitle" class="text-base font-bold text-white line-clamp-2">영상 제목</h3>
+                    
+                    <!-- Audio Player -->
+                    <div class="pt-1 flex items-center gap-3">
+                        <audio id="audioPlayer" controls class="w-full h-9 rounded-lg opacity-90"></audio>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Content Tabs & Actions -->
+            <div class="bg-slate-900/70 border border-slate-800 rounded-2xl shadow-xl overflow-hidden backdrop-blur-md">
+                <!-- Tab Header -->
+                <div class="border-b border-slate-800 px-4 pt-3 flex flex-wrap items-center justify-between gap-3 bg-slate-950/40">
+                    <div class="flex space-x-2" id="tabButtons">
+                        <button data-tab="summary" class="tab-btn px-4 py-2.5 text-xs font-semibold rounded-t-lg border-b-2 border-indigo-500 text-indigo-400 flex items-center gap-1.5 transition-all">
+                            <i data-lucide="sparkles" class="w-4 h-4"></i>
+                            <span>핵심 요약</span>
+                        </button>
+                        <button data-tab="timestamps" class="tab-btn px-4 py-2.5 text-xs font-semibold rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition-all">
+                            <i data-lucide="clock" class="w-4 h-4"></i>
+                            <span>타임스탬프 & 대화</span>
+                        </button>
+                        <button data-tab="transcript" class="tab-btn px-4 py-2.5 text-xs font-semibold rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition-all">
+                            <i data-lucide="file-text" class="w-4 h-4"></i>
+                            <span>전체 텍스트</span>
+                        </button>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex items-center gap-2 pb-2">
+                        <button id="copyBtn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded-lg flex items-center gap-1.5 border border-slate-700 transition-all active:scale-95">
+                            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                            <span id="copyText">복사하기</span>
+                        </button>
+                        <div class="relative group">
+                            <button id="downloadDropdownBtn" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded-lg flex items-center gap-1.5 font-medium shadow-md transition-all active:scale-95">
+                                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                                <span>다운로드</span>
+                            </button>
+                            <div class="absolute right-0 mt-1 w-36 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl hidden group-hover:block z-20 py-1">
+                                <button onclick="downloadAsFile('txt')" class="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-indigo-600/30 flex items-center gap-2">
+                                    <i data-lucide="file-text" class="w-3.5 h-3.5 text-indigo-400"></i>
+                                    <span>텍스트 (.txt)</span>
+                                </button>
+                                <button onclick="downloadAsFile('md')" class="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-indigo-600/30 flex items-center gap-2">
+                                    <i data-lucide="file-code" class="w-3.5 h-3.5 text-purple-400"></i>
+                                    <span>마크다운 (.md)</span>
+                                </button>
+                                <button onclick="downloadAsFile('srt')" class="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-indigo-600/30 flex items-center gap-2">
+                                    <i data-lucide="subtitles" class="w-3.5 h-3.5 text-pink-400"></i>
+                                    <span>자막 (.srt)</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab Panels -->
+                <div class="p-6">
+                    <!-- Tab: Summary -->
+                    <div id="tabContent-summary" class="tab-content prose prose-invert max-w-none text-sm text-slate-300 leading-relaxed">
+                        <!-- Rendered Markdown Summary -->
+                    </div>
+
+                    <!-- Tab: Timestamps & Diarization -->
+                    <div id="tabContent-timestamps" class="tab-content hidden prose prose-invert max-w-none text-sm text-slate-300 leading-relaxed">
+                        <!-- Rendered Timestamps -->
+                    </div>
+
+                    <!-- Tab: Full Transcript -->
+                    <div id="tabContent-transcript" class="tab-content hidden prose prose-invert max-w-none text-sm text-slate-300 leading-relaxed whitespace-pre-wrap font-sans">
+                        <!-- Rendered Full Transcript -->
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800/80 py-4 text-center text-xs text-slate-400">
+        <p>YouTube Audio Transcriber &copy; 2026 | Google GenAI SDK & Gemini Models</p>
+    </footer>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>
