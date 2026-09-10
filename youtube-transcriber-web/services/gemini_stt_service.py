@@ -17,7 +17,7 @@ def transcribe_audio_with_gemini(
     audio_path: str,
     mime_type: str = "audio/mp4",
     api_key: Optional[str] = None,
-    model_name: str = "gemini-2.5-flash",
+    model_name: str = "gemini-3.7-flash",
     include_summary: bool = True,
     language_hint: str = "한국어",
 ) -> Dict[str, Any]:
@@ -33,7 +33,7 @@ def transcribe_audio_with_gemini(
     print(f"[Gemini STT] 오디오 파일 업로드 중: {audio_path}")
     uploaded_file = client.files.upload(
         file=audio_path,
-        mime_type=mime_type,
+        config=types.UploadFileConfig(mime_type=mime_type) if mime_type else None,
     )
 
     # 업로드 파일 활성화 대기 (필요 시)

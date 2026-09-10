@@ -5,7 +5,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -41,6 +41,11 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return Response(status_code=204)
+
+
 # 요청 Pydantic 모델
 class VideoInfoRequest(BaseModel):
     url: str
@@ -49,7 +54,7 @@ class VideoInfoRequest(BaseModel):
 class TranscribeRequest(BaseModel):
     url: str
     api_key: Optional[str] = None
-    model: Optional[str] = "gemini-2.5-flash"
+    model: Optional[str] = "gemini-3.7-flash"
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -57,9 +62,9 @@ async def home(request: Request):
     """메인 대시보드 페이지"""
     has_env_key = bool(os.environ.get("GEMINI_API_KEY"))
     return templates.TemplateResponse(
-        "index.html",
-        {
-            "request": request,
+        request=request,
+        name="index.html",
+        context={
             "has_env_key": has_env_key,
         },
     )
